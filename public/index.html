@@ -1,0 +1,206 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- ArcGIS CSS and core API -->
+    <link rel="stylesheet" href="https://js.arcgis.com/4.33/esri/themes/light/main.css" />
+  <script src="https://js.arcgis.com/4.33/"></script>
+
+  <!-- ArcGIS Map Components (web components) - use 4.32 for compatibility -->
+  <script type="module" src="https://js.arcgis.com/4.32/map-components/"></script>
+
+    <style>
+  html, body, #app { height: 100%; margin: 0; }
+  arcgis-map { display: block; height: 70vh; }
+      #panel { padding: 8px; font: 14px/1.4 system-ui, sans-serif; }
+      textarea { width: 100%; height: 140px; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <arcgis-map id="map" basemap="topo-vector" center="-98,39" zoom="5">
+        <arcgis-search position="top-left"></arcgis-search>
+        <arcgis-sketch id="sketch" position="top-right" creation-mode="single"></arcgis-sketch>
+      </arcgis-map>
+      <div style="margin: 16px 0; display: flex; align-items: flex-start; gap: 16px;">
+        <div>
+          <label for="bufferSize" style="font-weight:bold;">Buffer size (miles): </label>
+          <input id="bufferSize" type="number" step="0.01" value="0.25" style="width:5em;">
+        </div>
+        <div style="flex:1;">
+          <label for="geom" style="font-weight:bold;">Esri JSON location:</label>
+          <textarea id="geom" readonly style="width:100%; height:60px; font-size:0.95em; background:#f8f8f8; border-radius:4px; border:1px solid #ccc; resize:vertical; padding:4px;"></textarea>
+        </div>
+      </div>
+      <button id="geoScreenBtn" style="margin: 8px 0 0 0; font-size: 1.2em; display:block; width:100%;">Geospatial Screen</button>
+      <div style="display: flex; gap: 24px; margin-top: 24px;">
+        <div style="flex:1; border:1px solid #ccc; border-radius:8px; padding:16px; min-width:0;">
+          <div style="font-weight:bold; margin-bottom:8px;">NEPA Assist API Call (curl):</div>
+          <pre id="nepaApiCall" style="white-space:pre-wrap; background:#f0f0f0; padding:8px; border-radius:4px; margin-bottom:8px;"></pre>
+          <pre id="nepaResult" style="white-space:pre-wrap; background:#f8f8f8; padding:8px; border-radius:4px; transition:height 0.3s; overflow:auto;"></pre>
+        </div>
+        <div style="flex:1; border:1px solid #ccc; border-radius:8px; padding:16px; min-width:0;">
+          <div style="font-weight:bold; margin-bottom:8px;">IPaC API Call (curl):</div>
+          <pre id="ipacApiCall" style="white-space:pre-wrap; background:#f0f0f0; padding:8px; border-radius:4px; margin-bottom:8px;"></pre>
+          <pre id="ipacResult" style="white-space:pre-wrap; background:#f8f8f8; padding:8px; border-radius:4px; transition:height 0.3s; overflow:auto;"></pre>
+        </div>
+      </div>
+  <!-- geom textarea is now visible above -->
+  <!-- bufferSize input is now visible above -->
+    </div>
+
+    <script>
+  const geomOut = document.getElementById("geom");
+  const sketchEl = document.getElementById("sketch");
+  const geoScreenBtn = document.getElementById("geoScreenBtn");
+  const nepaResult = document.getElementById("nepaResult");
+  const ipacResult = document.getElementById("ipacResult");
+  const nepaApiCall = document.getElementById("nepaApiCall");
+  const ipacApiCall = document.getElementById("ipacApiCall");
+
+      // Project Web Mercator to WGS84 so you get lon/lat numbers in the JSON
+      function toWGS84(geometry, done) {
+        if (geometry?.spatialReference?.wkid === 4326) return done(geometry);
+        require(["esri/geometry/support/webMercatorUtils"], wm => {
+          try {
+            const g = wm.webMercatorToGeographic(geometry);
+            done(g || geometry);
+          } catch {
+            done(geometry);
+          }
+        });
+      }
+
+      function writeGeom(geometry) {
+        toWGS84(geometry, g => {
+          geomOut.value = JSON.stringify(g.toJSON());
+        });
+      }
+
+      // New sketches
+      sketchEl.addEventListener("arcgisCreate", e => {
+        if (e.detail?.state === "complete") writeGeom(e.detail.graphic.geometry);
+      });
+      // Edits to an existing sketch
+      sketchEl.addEventListener("arcgisUpdate", e => {
+        if (e.detail?.state === "complete") writeGeom(e.detail.graphics[0].geometry);
+      });
+      geoScreenBtn.addEventListener("click", async () => {
+  const geometry = geomOut.value;
+  const bufferSize = document.getElementById("bufferSize").value || "0.25";
+  nepaResult.textContent = "";
+  ipacResult.textContent = "";
+  nepaApiCall.textContent = "";
+  ipacApiCall.textContent = "";
+  // Use actual NEPA Assist API URL
+  const nepaApiUrl = "https://nepassisttool.epa.gov/nepassist/api/arcgis/geometry/buffer";
+  const ipacApiUrl = "https://ipacb.ecosphere.fws.gov/location/api/resources";
+        if (!geometry) {
+          nepaResult.textContent = "No geometry found.";
+          ipacResult.textContent = "No geometry found.";
+          nepaApiCall.textContent = `curl -X POST '${nepaApiUrl}' -H 'Content-Type: application/json' -d '{}'`;
+          ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d '{}'`;
+          return;
+        }
+        try {
+          const geomObj = JSON.parse(geometry);
+          let coords = "";
+          let type = "polygon";
+          if (geomObj.rings) {
+            coords = geomObj.rings[0].map(pt => pt.join(",")).join(",");
+            type = "polygon";
+          } else if (geomObj.paths) {
+            coords = geomObj.paths[0].map(pt => pt.join(",")).join(",");
+            type = "polyline";
+          } else if (geomObj.x && geomObj.y) {
+            coords = `${geomObj.x},${geomObj.y}`;
+            type = "point";
+          } else {
+            nepaResult.textContent = "Unsupported geometry type.";
+            nepaApiCall.textContent = `curl -X POST '${nepaApiUrl}' -H 'Content-Type: application/json' -d '${JSON.stringify({ coords, type, bufferSize })}'`;
+            // IPaC curl and result for unsupported geometry
+            ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d 'Unsupported geometry type.'`;
+            ipacResult.textContent = "IPaC only supports POLYGON and LINESTRING geometries.";
+            ipacResult.style.height = 'auto';
+            ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
+            return;
+          }
+          // IPaC curl and result should be set before NEPA call
+          let wkt = "";
+          let validForIpac = false;
+          if (geomObj.rings) {
+            wkt = `POLYGON((` + geomObj.rings[0].map(pt => pt.join(" ")).join(", ") + `))`;
+            validForIpac = true;
+          } else if (geomObj.paths) {
+            wkt = `LINESTRING(` + geomObj.paths[0].map(pt => pt.join(" ")).join(", ") + `)`;
+            validForIpac = true;
+          }
+          if (validForIpac) {
+            const ipacBody = {
+              projectLocationWKT: wkt,
+              includeOtherFwsResources: true,
+              includeCrithabGeometry: false,
+              saveLocationForProjectCreation: false,
+              timeout: 5
+            };
+            ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d '${JSON.stringify(ipacBody, null, 2)}'`;
+            try {
+              const ipacResponse = await fetch(ipacApiUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(ipacBody)
+              });
+              if (!ipacResponse.ok) throw new Error("API error: " + ipacResponse.status);
+              const ipacData = await ipacResponse.json();
+              ipacResult.textContent = JSON.stringify(ipacData, null, 2);
+              ipacResult.style.height = 'auto';
+              ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
+            } catch (err) {
+              ipacResult.textContent = "Error: " + err.message;
+              ipacResult.style.height = 'auto';
+              ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
+            }
+          } else {
+            ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d 'IPaC only supports POLYGON and LINESTRING geometries.'`;
+            ipacResult.textContent = "IPaC only supports POLYGON and LINESTRING geometries.";
+            ipacResult.style.height = 'auto';
+            ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
+          }
+          // Format coords for display: split into array of pairs if polygon or polyline
+          let displayCoords = coords;
+          if ((type === "polygon" || type === "polyline") && coords) {
+            const pairs = coords.split(",").map(Number);
+            displayCoords = [];
+            for (let i = 0; i < pairs.length; i += 2) {
+              displayCoords.push([pairs[i], pairs[i+1]]);
+            }
+          }
+          const nepaBody = { coords: displayCoords, type, bufferSize };
+          nepaApiCall.textContent = `curl -X POST '${nepaApiUrl}' -H 'Content-Type: application/json' -d '${JSON.stringify(nepaBody, null, 2)}'`;
+          // Always use proxy for NEPA Assist API calls (use geometry buffer proxy)
+          try {
+            const nepaResponse = await fetch('/geometry-buffer-proxy', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(nepaBody)
+            });
+            if (!nepaResponse.ok) throw new Error("API error: " + nepaResponse.status);
+            const nepaData = await nepaResponse.json();
+            nepaResult.textContent = JSON.stringify(nepaData, null, 2);
+            nepaResult.style.height = 'auto';
+            nepaResult.style.height = (nepaResult.scrollHeight + 16) + 'px';
+          } catch (err) {
+            nepaResult.textContent = "Error: " + err.message;
+            nepaResult.style.height = 'auto';
+            nepaResult.style.height = (nepaResult.scrollHeight + 16) + 'px';
+          }
+        } catch (err) {
+          nepaResult.textContent = "Error: " + err.message;
+          nepaResult.style.height = 'auto';
+          nepaResult.style.height = (nepaResult.scrollHeight + 16) + 'px';
+        }
+      });
+    </script>
+  </body>
+</html>

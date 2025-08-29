@@ -1,0 +1,977 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "version": "1.1.1",
+    "title": "IPaC Location API",
+    "description": "The IPaC location API enables external applications to create and request data from IPaC through a RESTful interface. IMPORTANT: THE LOCATION API WILL EVENTUALLY REQUIRE AN API KEY FOR ACCESS. TO BE NOTIFIED OF UPCOMING CHANGES TO THE API, PLEASE SEND AN EMAIL TO fwhq_ipac@fws.gov."
+  },
+  "servers": [
+    {
+      "url": "https://ipacb.ecosphere.fws.gov/location/api",
+      "description": "This is a link to our beta server. Use ipac.ecosphere.fws.gov/location/api for production work."
+    }
+  ],
+  "paths": {
+    "/resources": {
+      "post": {
+        "summary": "View the resources of the specified location.",
+        "description": "Retrieve species, critical habitat, FWS field office, migratory bird, marine mammal, fish hatcheries, refuges, wetlands, and CBRA information about the specified location.",
+        "operationId": "locationResources",
+        "tags": [
+          "resources"
+        ],
+        "requestBody": {
+          "description": "The location for which to retrieve resources.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resource information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resources"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {},
+              "application/xml": {}
+            }
+          },
+          "default": {
+            "description": "Unexpected Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "LocationRequest": {
+        "properties": {
+          "timeout": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The timeout (in seconds) for other FWS resource calls.",
+            "default": 2
+          },
+          "apiVersion": {
+            "type": "string",
+            "format": "semantic version number",
+            "description": "Forces the version of the API to be the specified version if it is still supported. If the version specified is no longer supported an error will thrown. If no version is specified the latest version will be used.",
+            "example": "1.0.0"
+          },
+          "locationFormat": {
+            "type": "string",
+            "description": "The location format for the location.footprint parameter. Either \"WKT\" or \"GeoJSON\"",
+            "default": "GeoJSON"
+          },
+          "includeOtherFwsResources": {
+            "type": "boolean",
+            "description": "A flag to indicate whether IPaC should request other FWS resources (e.g. Migratory birds, Fish hatcheries, Wetlands, etc.).",
+            "default": true
+          },
+          "includeCrithabGeometry": {
+            "type": "boolean",
+            "description": "A flag to indicate whether IPaC should include the critical habitat geometry as part of the response. Note that some critical habitat geometries are very complex and may slow down the response significantly.",
+            "default": false
+          },
+          "saveLocationForProjectCreation": {
+            "type": "boolean",
+            "description": "A flag to indicate whether this location should be saved for project creation.  If true, a URL will be returned for easy project creation.",
+            "default": false
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "projectLocationWKT"
+            ],
+            "properties": {
+              "projectLocationWKT": {
+                "type": "string",
+                "format": "Open Geospatial Consortium (OGC) well-known text (WKT)",
+                "description": "Open Geospatial Consortium (OGC) well-known text (WKT) representing a location. At this time only the LINESTRING, POLYGON and MULTIPOLYGON geometry types are supported. See the [OGC Simple Feature Access specification](https://www.opengeospatial.org/standards/sfa) for a description of well-known text syntax.",
+                "example": "POLYGON((-95.1306152 30.4486737, -93.6584473 29.4061051, -94.6691895 28.5314486, -96.5368652 29.9834867, -95.1306152 30.4486737))"
+              }
+            }
+          },
+          {
+            "required": [
+              "location.footprint"
+            ],
+            "properties": {
+              "location.footprint": {
+                "type": "string",
+                "format": "GeoJSON",
+                "description": "A [GeoJSON geometry](https://geojson.org/geojson-spec.html#geometry-objects) of type \"MultiPolygon\" or \"Polygon\". A WKT formatted geometry may be used instead if the 'locationFormat' parameter is set to 'WKT'.",
+                "example": "{\"coordinates\":[[[-95.1306152,30.4486737],[-93.6584473,29.4061051],[-94.6691895,28.5314486],[-96.5368652,29.9834867],[-95.1306152,30.4486737]]],\"type\":\"Polygon\"}"
+              }
+            }
+          }
+        ]
+      },
+      "Resources": {
+        "properties": {
+          "resources": {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "type": "string",
+                "description": "Indicates the version of the API associated with the data. Either the version specified in the request or the latest version of the API.",
+                "example": "1.0.0"
+              },
+              "notification": {
+                "type": "string",
+                "description": "A general notification about the status of the API or upcoming changes.",
+                "example": "The API will be down for maintenance on Jan 4, 2097 from 5PM to 7PM EST."
+              },
+              "crithabs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CriticalHabitat"
+                }
+              },
+              "facilitiesQueried": {
+                "type": "boolean",
+                "description": "Indicated whether Fish Hatchery and Refuge information was successfully retrieved."
+              },
+              "fieldOffices": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/FieldOffice"
+                }
+              },
+              "fishHatcheries": {
+                "$ref": "#/components/schemas/TruncatedResourceList"
+              },
+              "location": {
+                "$ref": "#/components/schemas/Location"
+              },
+              "marineMammals": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MarineMammal"
+                }
+              },
+              "migbirds": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MigratoryBird"
+                }
+              },
+              "migbirdsQueried": {
+                "type": "boolean",
+                "description": "Indicated whether Migratory bird information was successfully retrieved."
+              },
+              "numFacilities": {
+                "type": "integer",
+                "format": "int32",
+                "description": "Indicates how many Fish Hatchery and Refuges were retrieved."
+              },
+              "allReferencedPopulationsBySid": {
+                "description": "A map containing all references to populations by this API by their unique identifier (PopulationSid).",
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/Population"
+                }
+              },
+              "populationsBySid": {
+                "description": "Populations of concern by their unique identifier (PopulationSid).",
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/PopulationAndAssociatedInfo"
+                }
+              },
+              "refuges": {
+                "$ref": "#/components/schemas/TruncatedResourceList"
+              },
+              "wetlands": {
+                "$ref": "#/components/schemas/TruncatedResourceList"
+              },
+              "wetlandsQueried": {
+                "type": "boolean",
+                "description": "Indicates whether Wetland information was successfully retrieved."
+              },
+              "coastalBarriers": {
+                "$ref": "#/components/schemas/TruncatedResourceList"
+              },
+              "coastalBarriersQueried": {
+                "type": "boolean",
+                "description": "Indicated whether Coastal Barrier Resources Act (CBRA) information was successfully retrieved."
+              }
+            }
+          },
+          "startProjectURL": {
+            "$ref": "#/components/schemas/ReturnURL"
+          }
+        }
+      },
+      "CriticalHabitat": {
+        "properties": {
+          "hasGeometry": {
+            "type": "boolean",
+            "description": "Indicates whether the critical habitat has a defined geometry. This field can be used to determine if 'optionalGeometry' is defined. Note that the 'optionalGeometry' field will still be null if the request did not specify to include crithab geometries."
+          },
+          "optionalGeometry": {
+            "$ref": "#/components/schemas/Geometry"
+          },
+          "populationSid": {
+            "$ref": "#/components/schemas/PopulationSid"
+          },
+          "speciesInFootprint": {
+            "type": "boolean",
+            "description": "Indicates whether the species associated with this critical habitat is also in the specified location. Note that the species is defined in a different section."
+          },
+          "type": {
+            "type": "string",
+            "format": "Final|Proposed",
+            "description": "Indicates whether the critical habitat has been finalized or if it is still a proposal."
+          }
+        }
+      },
+      "FieldOffice": {
+        "properties": {
+          "officeName": {
+            "type": "string",
+            "description": "Name of the FWS field office."
+          },
+          "sid": {
+            "$ref": "#/components/schemas/FwsOfficeSid"
+          },
+          "formattedMailAddress1": {
+            "type": "string",
+            "description": "FWS field office line one of their mailing address. Typically contains street number and street name."
+          },
+          "formattedMailAddress2": {
+            "type": "string",
+            "description": "FWS field office line two of their mailing address. Typically contains a suite number or PO box if applicable.",
+            "nullable": true
+          },
+          "formattedMailCity": {
+            "type": "string",
+            "description": "FWS field office mailing address city."
+          },
+          "formattedMailState": {
+            "type": "string",
+            "description": "FWS field office mailing address state."
+          },
+          "formattedMailZip": {
+            "type": "string",
+            "format": "^\\d{5}(?:[-\\s]\\d{4})?$",
+            "description": "FWS field office mailing address zip code."
+          },
+          "mailAndPhysicalAddressTheSame": {
+            "type": "boolean",
+            "description": "Indicates whether the FWS field office's mailing address is identical to its physical address."
+          },
+          "formattedPhysicalAddress1": {
+            "type": "string",
+            "description": "FWS field office line one of their physical address. Typically contains street number and street name."
+          },
+          "formattedPhysicalAddress2": {
+            "type": "string",
+            "description": "FWS field office line two of their physical address. Typically contains a suite number if applicable.",
+            "nullable": true
+          },
+          "formattedPhysicalCity": {
+            "type": "string",
+            "description": "FWS field office physical address city."
+          },
+          "formattedPhysicalState": {
+            "type": "string",
+            "description": "FWS field office physical address state."
+          },
+          "formattedPhysicalZip": {
+            "type": "string",
+            "format": "^\\d{5}(?:[-\\s]\\d{4})?$",
+            "description": "FWS field office physical address zip code."
+          },
+          "formattedPhone": {
+            "type": "string",
+            "format": "^(\\+\\d{1,2}\\s)?\\(?\\d{3}\\)?[\\s.-]?\\d{3}[\\s.-]?\\d{4}$",
+            "description": "FWS field office phone number.",
+            "nullable": true
+          },
+          "formattedFax": {
+            "type": "string",
+            "format": "^(\\+\\d{1,2}\\s)?\\(?\\d{3}\\)?[\\s.-]?\\d{3}[\\s.-]?\\d{4}$",
+            "description": "FWS field office fax number.",
+            "nullable": true
+          },
+          "officeEmailAddress": {
+            "type": "string",
+            "description": "FWS field office email address.",
+            "nullable": true
+          }
+        }
+      },
+      "TruncatedResourceList": {
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/FishHatchery"
+                },
+                {
+                  "$ref": "#/components/schemas/Refuge"
+                },
+                {
+                  "$ref": "#/components/schemas/Wetland"
+                },
+                {
+                  "$ref": "#/components/schemas/CoastalBarrier"
+                }
+              ]
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "Indicates whether the number of resources (fish hatcheries, refuges, wetlands, etc.) in the specified location exceeds the number retrieved."
+          }
+        }
+      },
+      "FishHatchery": {
+        "properties": {
+          "acres": {
+            "type": "number",
+            "format": "double",
+            "description": "The amount of acres associated with the fish hatchery."
+          },
+          "bounds": {
+            "$ref": "#/components/schemas/Geometry"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the fish hatchery."
+          },
+          "optionalFieldOfficeSid": {
+            "description": "FWS field office associated with this fish hatchery, if applicable.",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Sid"
+              }
+            ]
+          },
+          "orgCode": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Code used to uniquely identify facilities."
+          },
+          "rslType": {
+            "type": "string",
+            "enum": [
+              "Fish Technology Center",
+              "Fisheries Research Station",
+              "National Fish Hatchery"
+            ],
+            "description": "Describes the type of this fish hatchery."
+          },
+          "url": {
+            "type": "string",
+            "format": "url",
+            "description": "A link to the FWS Fish hatchery site for more information on this fish hatchery."
+          }
+        }
+      },
+      "Location": {
+        "properties": {
+          "footprint": {
+            "$ref": "#/components/schemas/Geometry"
+          },
+          "optionalOriginalGeometry": {
+            "description": "The original geometry that was passed to IPaC before it was modified. For instance, LINESTRING geometries will have a buffer added to them. The original LINESTRING geometry will be in this field.",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Geometry"
+              }
+            ]
+          },
+          "optionalSelectedFips": {
+            "type": "string",
+            "format": "FIPS",
+            "description": "County or state [FIPS code](https://en.wikipedia.org/wiki/FIPS_county_code). Used if the specified location is a county or state.",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "Contains a description of the location based on the state and/or counties the specified location resides in."
+          },
+          "optionalBufferDistance": {
+            "type": "number",
+            "format": "double",
+            "description": "Contains the buffer distance around the original geometry.",
+            "nullable": true
+          },
+          "selectionMode": {
+            "type": "string",
+            "description": "Stores information about the supplied geometry, and how it was derived."
+          }
+        }
+      },
+      "MarineMammal": {
+        "properties": {
+          "ranges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Range"
+            }
+          },
+          "populationSid": {
+            "$ref": "#/components/schemas/PopulationSid"
+          }
+        }
+      },
+      "MigratoryBird": {
+        "properties": {
+          "bcc": {
+            "type": "boolean",
+            "description": "Indicates whether this migratory bird is a [Bird of Conservation Concern (BCC)](https://www.fws.gov/program/migratory-birds/species). "
+          },
+          "level": {
+            "properties": {
+              "enumType": {
+                "type": "string",
+                "description": "Defines the object type of the enumeration."
+              },
+              "name": {
+                "type": "string",
+                "enum": [
+                  "BCC_RANGEWIDE_CON",
+                  "BCC_RANGEWIDE_HPI",
+                  "BCC_RANGEWIDE_PRV",
+                  "BCC_BCR",
+                  "NON_BCC_VULNERABLE"
+                ],
+                "description": "Defines the level of concern for the migratory bird.\n* BCC_RANGEWIDE_CON - This is a Bird of Conservation Concern (BCC) throughout its range in the continental USA and Alaska.\n* BCC_RANGEWIDE_HPI - This is a Bird of Conservation Concern (BCC) throughout its range in Hawaii and the Pacific Islands.\n* BCC_RANGEWIDE_PRV - This is a Bird of Conservation Concern (BCC) throughout its range in Puerto Rico and the Virgin Islands.\n* BCC_BCR - This is a Bird of Conservation Concern (BCC) only in particular Bird Conservation Regions (BCRs) in the continental USA.\n* NON_BCC_VULNERABLE - This is not a Bird of Conservation Concern (BCC) in this area, but warrants attention because of the Eagle Act or for potential susceptibilities in offshore areas from certain types of development or activities."
+              }
+            },
+            "description": "Defines the level of concern for the migratory bird."
+          },
+          "optionalBreedsFrom": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Defines the starting date and time of the migratory bird's breeding season."
+          },
+          "optionalBreedsTo": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Defines the ending date and time of the migratory bird's breeding season."
+          },
+          "phenologySpecies": {
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Code to unique identify the bird species the phenology data is associated with."
+              },
+              "commonName": {
+                "type": "string",
+                "description": "The migratory bird's commonly used name."
+              },
+              "scientificName": {
+                "type": "string",
+                "description": "The migratory bird's scientific name."
+              },
+              "weeklyData": {
+                "type": "array",
+                "items": {
+                  "properties": {
+                    "aggEventCount": {
+                      "type": "integer",
+                      "format": "int32",
+                      "description": "The aggregated number of surveys performed."
+                    },
+                    "aggProbability": {
+                      "type": "integer",
+                      "format": "int32",
+                      "description": "The aggregated probability that the species is in the area based on the survey data."
+                    },
+                    "phenologyBarHeight": {
+                      "type": "integer",
+                      "format": "int32",
+                      "description": "Height of the phenology bar. Useful for reproducing the IPaC probability of presence graph."
+                    },
+                    "phenologyYPosition": {
+                      "type": "integer",
+                      "format": "int32",
+                      "description": "Vertical position of the phenology bar. Useful for reproducing the IPaC probability of presence graph."
+                    },
+                    "surveyBarHeight": {
+                      "type": "integer",
+                      "format": "int32",
+                      "description": "Height of the survey bar. Useful for reproducing the IPaC probability of presence graph."
+                    },
+                    "surveyYPosition": {
+                      "type": "integer",
+                      "format": "int32",
+                      "description": "Vertical position of the survey bar. Useful for reproducing the IPaC probability of presence graph."
+                    },
+                    "weekId": {
+                      "type": "integer",
+                      "format": "[1-48]",
+                      "description": "Indicates the week of the year. A year is represented as 12 4-week months, so this value will range between 1 and 48. Note that not all weeks will be populated."
+                    }
+                  },
+                  "description": "Week of the year information for determining the probability that the migratory bird will be present in the location."
+                }
+              }
+            }
+          },
+          "populationSid": {
+            "$ref": "#/components/schemas/PopulationSid"
+          }
+        }
+      },
+      "PopulationAndAssociatedInfo": {
+        "properties": {
+          "conditional": {
+            "type": "boolean",
+            "description": "Indicates whether the population has specific conditions which should be considered during consultation. Note these are FWS Office specific."
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "description": "All conditions applied to the population. Each office in the location area can define their own conditions for the same population."
+            }
+          },
+          "crithabInFootprint": {
+            "type": "boolean",
+            "description": "Indicates whether the critical habitat associated with this species is also in the specified location. Note that the critical habitat is defined in a different section."
+          },
+          "optionalFederalRegisterCrithabStatus": {
+            "properties": {
+              "sid": {
+                "$ref": "#/components/schemas/PopulationSid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Final",
+                  "Proposed",
+                  "Emergency"
+                ],
+                "description": "Status of the Federal register."
+              },
+              "date": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Date that the critical habitat status was published."
+              },
+              "isFileLocal": {
+                "type": "boolean",
+                "description": "Indicates if the Federal register document is hosted locally on the ECOS servers."
+              },
+              "url": {
+                "type": "string",
+                "format": "url",
+                "description": "A link to the Federal register document for this species."
+              }
+            },
+            "nullable": true,
+            "description": "Describes the official critical habitat information published by the FWS."
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "ranges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Range"
+            }
+          },
+          "tessDocuments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TessDocument"
+            }
+          }
+        }
+      },
+      "Refuge": {
+        "properties": {
+          "acres": {
+            "type": "number",
+            "format": "double",
+            "description": "The amount of acres associated with the refuge."
+          },
+          "bounds": {
+            "$ref": "#/components/schemas/Geometry"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the refuge."
+          },
+          "optionalFieldOfficeSid": {
+            "description": "FWS field office associated with this refuge, if applicable.",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FwsOfficeSid"
+              }
+            ]
+          },
+          "orgCode": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Code used to uniquely identify facilities."
+          },
+          "rslType": {
+            "type": "string",
+            "enum": [
+              "Administrative Site",
+              "Conservation Area",
+              "Coordination Area",
+              "Farm Service Agency Transfer Parcel",
+              "National Wildlife Refuge",
+              "Waterfowl Production Area",
+              "Wetland Management Districts",
+              "Wildlife Management Area",
+              "Wildlife Research Center"
+            ],
+            "description": "Describes the type of this refuge."
+          },
+          "url": {
+            "type": "string",
+            "format": "url",
+            "description": "A link to the FWS Refuges site for more information on this refuge."
+          }
+        }
+      },
+      "Wetland": {
+        "properties": {
+          "wetlandCode": {
+            "type": "string",
+            "description": "A unique string that describes the wetland."
+          },
+          "wetlandType": {
+            "type": "string",
+            "description": "Describes the type of wetland."
+          },
+          "acres": {
+            "type": "number",
+            "format": "double",
+            "description": "Total acre count for all wetlands of the same type in the specified location. Note that the attributes field also has an acres property, however, it is incorrect because it is not the sum."
+          },
+          "attributes": {
+            "type": "object",
+            "required": [
+              "SYSTEM",
+              "SHAPE_Length",
+              "MODIFIER_4",
+              "SYSTEM_NAME",
+              "SPLIT_CLASS_DEFINITION",
+              "CLASS",
+              "MODIFIER_1",
+              "MODIFIER_2",
+              "MODIFIER_3",
+              "OBJECTID",
+              "MODIFIER_1_SUBGROUP",
+              "WATER_REGIME",
+              "MODIFIER_4_SUBGROUP",
+              "MODIFIER_3_DEFINITION",
+              "WATER_REGIME_NAME",
+              "MODIFIER_3_GROUP",
+              "MODIFIER_1_NAME",
+              "WATER_REGIME_DEFINITION",
+              "CLASS_DEFINITION",
+              "SYSTEM_DEFINITION",
+              "GLOBALID",
+              "WETLAND_TYPE",
+              "ATTRIBUTE",
+              "MODIFIER_2_GROUP",
+              "MODIFIER_4_DEFINITION",
+              "SUBSYSTEM_DEFINITION",
+              "ACRES",
+              "SUBSYSTEM",
+              "SUBSYSTEM_NAME",
+              "MODIFIER_3_NAME",
+              "MODIFIER_2_SUBGROUP",
+              "MODIFIER_1_GROUP",
+              "MODIFIER_2_DEFINITION",
+              "Shape",
+              "MODIFIER_3_SUBGROUP",
+              "SUBCLASS_DEFINITION",
+              "SPLIT_CLASS",
+              "SPLIT_SUBCLASS_DEFINITION",
+              "WATER_REGIME_SUBGROUP",
+              "CLASS_NAME",
+              "SPLIT_SUBCLASS_NAME",
+              "SUBCLASS",
+              "SPLIT_CLASS_NAME",
+              "MODIFIER_4_NAME",
+              "SHAPE_Area",
+              "SPLIT_SUBCLASS",
+              "MODIFIER_1_DEFINITION",
+              "MODIFIER_4_GROUP",
+              "MODIFIER_2_NAME",
+              "SUBCLASS_NAME"
+            ],
+            "properties": {},
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "All information related to the wetland. This includes information such as the wetlandCode and wetlandType which IPaC extracts for ease of reference. Note that the acres property is not the sum of all acres of this specific wetland type, see the top level acres property."
+          }
+        }
+      },
+      "CoastalBarrier": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "A unique string that identifies a coastal barrier."
+          },
+          "type": {
+            "type": "string",
+            "description": "The type of coastal barrier."
+          },
+          "fastAcres": {
+            "type": "number",
+            "format": "double",
+            "description": "Number of fast acres at this coastal barrer."
+          },
+          "wetAcres": {
+            "type": "number",
+            "format": "double",
+            "description": "Number of wet acres at this coastal barrer."
+          },
+          "shoreMiles": {
+            "type": "number",
+            "format": "double",
+            "description": "How many miles along shore this barrier spans."
+          },
+          "attributes": {
+            "type": "object",
+            "description": "All information related to the coastal barrier. This includes information such as the code, type, name, acres, and shore miles, which IPaC extracts for ease of reference."
+          }
+        }
+      },
+      "Geometry": {
+        "properties": {
+          "coordinates": {
+            "type": "array",
+            "format": "double",
+            "description": "A collection of (x, y) coordinates as doubles. See the [GeoJSON geometry format](https://geojson.org/geojson-spec.html#geometry-objects) for more information."
+          },
+          "type": {
+            "type": "string",
+            "description": "Defines the kind of geometry that is specified by the coordinates property."
+          }
+        },
+        "description": "A geometric shape defined by the [GeoJSON geometry](https://geojson.org/geojson-spec.html#geometry-objects) format."
+      },
+      "Sid": {
+        "description": "Unique identifier referencing specific object types.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifying number for the object."
+          },
+          "val": {
+            "type": "string",
+            "format": "\\w+\\$Sid\\[\\d+\\]",
+            "description": "Object's class concatenated with the identifying number to produce a unique identifier across all object types."
+          }
+        }
+      },
+      "PopulationSid": {
+        "description": "Unique identifier for populations",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Sid"
+          }
+        ],
+        "example": "Population$Sid[123]"
+      },
+      "FwsOfficeSid": {
+        "description": "Unique identifier for Fish and Wildlife Service offices.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Sid"
+          }
+        ],
+        "example": "FwsOffice$Sid[123]"
+      },
+      "Range": {
+        "properties": {
+          "optionalCondition": {
+            "type": "string",
+            "description": "Conditions that should be considered when consulting on the associated population in the associated office's jurisdiction.",
+            "nullable": true
+          },
+          "seasons": {
+            "type": "array",
+            "description": "Seasonal information associated with the condition."
+          },
+          "fieldOfficeSid": {
+            "$ref": "#/components/schemas/FwsOfficeSid"
+          }
+        }
+      },
+      "Population": {
+        "properties": {
+          "groupCode": {
+            "type": "string",
+            "description": "Unique string to represent the general grouping of plants or animals the population falls under."
+          },
+          "groupName": {
+            "type": "string",
+            "description": "Defines the general grouping of plants or animals the population falls under. E.g. Birds, Flowering plants, Insects, Mammals, etc."
+          },
+          "listingStatusCode": {
+            "type": "string",
+            "enum": [
+              "E",
+              "T",
+              "C",
+              "PE",
+              "PT",
+              "SAE",
+              "SAT",
+              "PSAE",
+              "PSAT",
+              "EmE",
+              "EmT",
+              "EXPN",
+              "PEXPE",
+              "PEXPN",
+              "SU"
+            ],
+            "description": "Unique string to represent the FWS listing status for the species.\n* E - Endangered\n* T - Threatened\n* C - Candidate\n* PE - Proposed Endangered\n* PT - Proposed Threatened\n* SAE - Similarity of Appearance (Endangered)\n* SAT - Similarity of Appearance (Threatened)\n* PSAE - Proposed Similarity of Appearance (Endangered)\n* PSAT - Proposed Similarity of Appearance (Threatened)\n* EmE - Emergency listing, Endangered\nEmT: Emergency listing, Threatened\n* EXPE - Experimental Population, Essential\n* EXPN - Experimental Population, Non-Essential\n* PEXPE - Proposed Experimental Population, Essential\n* PEXPN - Proposed Experimental Population, Non-Essential\n* SU - Status Undefined"
+          },
+          "listingStatusName": {
+            "type": "string",
+            "enum": [
+              "Endangered",
+              "Threatened",
+              "Candidate",
+              "Proposed Endangered",
+              "Proposed Threatened",
+              "Similarity of Appearance (Endangered)",
+              "Similarity of Appearance (Threatened)",
+              "Proposed Similarity of Appearance (Endangered)",
+              "Proposed Similarity of Appearance (Threatened)",
+              "Emergency listing, Endangered",
+              "Emergency listing, Threatened",
+              "Experimental Population, Essential",
+              "Experimental Population, Non-Essential",
+              "Proposed Experimental Population, Essential",
+              "Proposed Experimental Population, Non-Essential"
+            ],
+            "description": "Name associated with the status code that represents the FWS listing status for the species. See the listing status description for more information."
+          },
+          "optionalListingStatusDescription": {
+            "type": "string",
+            "description": "Description of what the FWS listing status means for the species.",
+            "nullable": true
+          },
+          "optionalCommonName": {
+            "type": "string",
+            "description": "Name of the species that is commonly used.",
+            "nullable": true
+          },
+          "optionalScientificName": {
+            "type": "string",
+            "description": "The species' scientific name.",
+            "nullable": true
+          },
+          "optionalPopulationDescription": {
+            "type": "string",
+            "description": "Describes where the specific species' population is located.",
+            "nullable": true
+          },
+          "optionalSpeciesDescription": {
+            "type": "string",
+            "description": "Information about the species as a whole, independent of the specific species' population.",
+            "nullable": true
+          },
+          "shortName": {
+            "type": "string",
+            "description": "The species name. This will be either the common name (if it is available) or the scientific name of the species."
+          },
+          "sid": {
+            "$ref": "#/components/schemas/PopulationSid"
+          },
+          "speciesId": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Identifier for the species as a whole."
+          },
+          "speciesProfileUrl": {
+            "type": "string",
+            "format": "url",
+            "description": "Link to the ECOS species profile for more information on the species."
+          }
+        },
+        "description": "A population is a group of the same species. There can be multiple populations of the same species, but it is unlikely in the same location."
+      },
+      "TessDocument": {
+        "properties": {
+          "docUrl": {
+            "type": "string",
+            "description": "Link to the document location."
+          },
+          "docTitle": {
+            "type": "string",
+            "description": "Name of the document."
+          },
+          "docDate": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Date the document was published if applicable.",
+            "nullable": true
+          },
+          "docType": {
+            "type": "string",
+            "description": "Defines the type of document.\n* Species Survey Guidelines:\nAn FWS field office’s recommended procedures on conducting site assessments and surveys for a specific species in the field office jurisdiction. Survey guidelines are meant to help project applicants to accurately assess the likelihood of a species’ presence in the vicinity of a project site.\n\n* Habitat Assessment Guidelines:\nAn FWS field office’s recommended procedures on evaluating the potential effects of their projects on a specific critical habitat within the field office’s jurisdiction. It is intended to help project applicants assess potential effects to the critical habitat and develop measures to avoid, minimize, and compensate for adverse effects to the species or its habitat.\n\n* IPaC Project Design Guidelines:\nAn FWS field office’s design recommendations (i.e., conservation measures and best management practices) for projects and work that can help reduce or eliminate potential effects to listed species.",
+            "enum": [
+              "Species Survey Guidelines",
+              "Habitat Assessment Guidelines",
+              "IPaC Project Design Guidelines"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Describes the purpose of the document."
+          },
+          "officeSid": {
+            "$ref": "#/components/schemas/FwsOfficeSid"
+          }
+        }
+      },
+      "ReturnURL": {
+        "properties": {
+          "startProjectURL": {
+            "type": "string",
+            "description": "URL to use to create a new project from saved location search."
+          }
+        }
+      }
+    },
+    "ReturnURL": {
+      "properties": {
+        "startProjectURL": {
+          "type": "string",
+          "description": "URL to use to create a new project from saved location search."
+        }
+      }
+    }
+  }
+}
