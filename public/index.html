@@ -1,206 +1,435 @@
 <!doctype html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- ArcGIS CSS and core API -->
-    <link rel="stylesheet" href="https://js.arcgis.com/4.33/esri/themes/light/main.css" />
-  <script src="https://js.arcgis.com/4.33/"></script>
+ <head>
+   <meta charset="utf-8" />
+   <meta name="viewport" content="width=device-width, initial-scale=1" />
+   <!-- ArcGIS CSS and core API -->
+   <link rel="stylesheet" href="https://js.arcgis.com/4.33/esri/themes/light/main.css" />
+ <script src="https://js.arcgis.com/4.33/"></script>
 
-  <!-- ArcGIS Map Components (web components) - use 4.32 for compatibility -->
-  <script type="module" src="https://js.arcgis.com/4.32/map-components/"></script>
 
-    <style>
-  html, body, #app { height: 100%; margin: 0; }
-  arcgis-map { display: block; height: 70vh; }
-      #panel { padding: 8px; font: 14px/1.4 system-ui, sans-serif; }
-      textarea { width: 100%; height: 140px; }
-    </style>
-  </head>
-  <body>
-    <div id="app">
-      <arcgis-map id="map" basemap="topo-vector" center="-98,39" zoom="5">
-        <arcgis-search position="top-left"></arcgis-search>
-        <arcgis-sketch id="sketch" position="top-right" creation-mode="single"></arcgis-sketch>
-      </arcgis-map>
-      <div style="margin: 16px 0; display: flex; align-items: flex-start; gap: 16px;">
-        <div>
-          <label for="bufferSize" style="font-weight:bold;">Buffer size (miles): </label>
-          <input id="bufferSize" type="number" step="0.01" value="0.25" style="width:5em;">
-        </div>
-        <div style="flex:1;">
-          <label for="geom" style="font-weight:bold;">Esri JSON location:</label>
-          <textarea id="geom" readonly style="width:100%; height:60px; font-size:0.95em; background:#f8f8f8; border-radius:4px; border:1px solid #ccc; resize:vertical; padding:4px;"></textarea>
-        </div>
-      </div>
-      <button id="geoScreenBtn" style="margin: 8px 0 0 0; font-size: 1.2em; display:block; width:100%;">Geospatial Screen</button>
-      <div style="display: flex; gap: 24px; margin-top: 24px;">
-        <div style="flex:1; border:1px solid #ccc; border-radius:8px; padding:16px; min-width:0;">
-          <div style="font-weight:bold; margin-bottom:8px;">NEPA Assist API Call (curl):</div>
-          <pre id="nepaApiCall" style="white-space:pre-wrap; background:#f0f0f0; padding:8px; border-radius:4px; margin-bottom:8px;"></pre>
-          <pre id="nepaResult" style="white-space:pre-wrap; background:#f8f8f8; padding:8px; border-radius:4px; transition:height 0.3s; overflow:auto;"></pre>
-        </div>
-        <div style="flex:1; border:1px solid #ccc; border-radius:8px; padding:16px; min-width:0;">
-          <div style="font-weight:bold; margin-bottom:8px;">IPaC API Call (curl):</div>
-          <pre id="ipacApiCall" style="white-space:pre-wrap; background:#f0f0f0; padding:8px; border-radius:4px; margin-bottom:8px;"></pre>
-          <pre id="ipacResult" style="white-space:pre-wrap; background:#f8f8f8; padding:8px; border-radius:4px; transition:height 0.3s; overflow:auto;"></pre>
-        </div>
-      </div>
-  <!-- geom textarea is now visible above -->
-  <!-- bufferSize input is now visible above -->
-    </div>
+ <!-- ArcGIS Map Components (web components) - use 4.32 for compatibility -->
+ <script type="module" src="https://js.arcgis.com/4.32/map-components/"></script>
 
-    <script>
-  const geomOut = document.getElementById("geom");
-  const sketchEl = document.getElementById("sketch");
-  const geoScreenBtn = document.getElementById("geoScreenBtn");
-  const nepaResult = document.getElementById("nepaResult");
-  const ipacResult = document.getElementById("ipacResult");
-  const nepaApiCall = document.getElementById("nepaApiCall");
-  const ipacApiCall = document.getElementById("ipacApiCall");
 
-      // Project Web Mercator to WGS84 so you get lon/lat numbers in the JSON
-      function toWGS84(geometry, done) {
-        if (geometry?.spatialReference?.wkid === 4326) return done(geometry);
-        require(["esri/geometry/support/webMercatorUtils"], wm => {
-          try {
-            const g = wm.webMercatorToGeographic(geometry);
-            done(g || geometry);
-          } catch {
-            done(geometry);
-          }
-        });
-      }
+   <style>
+ html, body, #app { height: 100%; margin: 0; }
+ arcgis-map { display: block; height: 70vh; }
+     #panel { padding: 8px; font: 14px/1.4 system-ui, sans-serif; }
+     textarea { width: 100%; height: 140px; }
+   </style>
+ </head>
+ <body>
+   <div id="app">
+     <arcgis-map id="map" basemap="topo-vector" center="-98,39" zoom="5">
+       <arcgis-search position="top-left"></arcgis-search>
+       <arcgis-sketch id="sketch" position="top-right" creation-mode="single"></arcgis-sketch>
+     </arcgis-map>
+     <div style="margin: 16px 0; display: flex; align-items: flex-start; gap: 16px;">
+       <div>
+         <label for="bufferSize" style="font-weight:bold;">Buffer size (miles): </label>
+         <input id="bufferSize" type="number" step="0.01" value="0.25" style="width:5em;">
+       </div>
+       <div style="flex:1;">
+         <label for="geom" style="font-weight:bold;">Esri JSON location:</label>
+         <textarea id="geom" readonly style="width:100%; height:60px; font-size:0.95em; background:#f8f8f8; border-radius:4px; border:1px solid #ccc; resize:vertical; padding:4px;"></textarea>
+       </div>
+     </div>
+     <button id="geoScreenBtn" style="margin: 8px 0 0 0; font-size: 1.2em; display:block; width:100%;">Geospatial Screen</button>
+ <!-- NEPAssist digest panel was moved into the left results panel so it is
+      grouped with the NEPA API call and results (matches IPaC on the right) -->
+     <div style="display: flex; gap: 24px; margin-top: 24px;">
+       <div style="flex:1; border:1px solid #ccc; border-radius:8px; padding:16px; min-width:0;">
+         <!-- NEPAssist digest panel (now embedded in the left results panel) -->
+         <div id="nepaDigest" style="margin-bottom:12px; border:1px solid #eee; border-radius:6px; padding:8px; background:#fff; display:none;">
+           <div style="font-weight:bold; margin-bottom:6px;">NEPAssist Summary</div>
+           <div id="nepaDigestContent">No NEPAssist results yet.</div>
+         </div>
+         <div style="font-weight:bold; margin-bottom:8px;">NEPA Assist API Call (curl):</div>
+         <pre id="nepaApiCall" style="white-space:pre-wrap; background:#f0f0f0; padding:8px; border-radius:4px; margin-bottom:8px;"></pre>
+         <pre id="nepaResult" style="white-space:pre-wrap; background:#f8f8f8; padding:8px; border-radius:4px; transition:height 0.3s; overflow:auto;"></pre>
+       </div>
+       <div style="flex:1; border:1px solid #ccc; border-radius:8px; padding:16px; min-width:0;">
+         <!-- IPaC digest panel (appears above the API call/result on the right) -->
+         <div id="ipacDigest" style="margin-bottom:12px; border:1px solid #eee; border-radius:6px; padding:8px; background:#fff; display:none;">
+           <div style="font-weight:bold; margin-bottom:6px;">IPaC screening summary</div>
+           <div id="ipacDigestContent">No IPaC results yet.</div>
+         </div>
+         <div style="font-weight:bold; margin-bottom:8px;">IPaC API Call (curl):</div>
+         <pre id="ipacApiCall" style="white-space:pre-wrap; background:#f0f0f0; padding:8px; border-radius:4px; margin-bottom:8px;"></pre>
+         <pre id="ipacResult" style="white-space:pre-wrap; background:#f8f8f8; padding:8px; border-radius:4px; transition:height 0.3s; overflow:auto;"></pre>
+       </div>
+     </div>
+ <!-- geom textarea is now visible above -->
+ <!-- bufferSize input is now visible above -->
+   </div>
 
-      function writeGeom(geometry) {
-        toWGS84(geometry, g => {
-          geomOut.value = JSON.stringify(g.toJSON());
-        });
-      }
 
-      // New sketches
-      sketchEl.addEventListener("arcgisCreate", e => {
-        if (e.detail?.state === "complete") writeGeom(e.detail.graphic.geometry);
-      });
-      // Edits to an existing sketch
-      sketchEl.addEventListener("arcgisUpdate", e => {
-        if (e.detail?.state === "complete") writeGeom(e.detail.graphics[0].geometry);
-      });
-      geoScreenBtn.addEventListener("click", async () => {
-  const geometry = geomOut.value;
-  const bufferSize = document.getElementById("bufferSize").value || "0.25";
-  nepaResult.textContent = "";
-  ipacResult.textContent = "";
-  nepaApiCall.textContent = "";
-  ipacApiCall.textContent = "";
-  // Use actual NEPA Assist API URL
-  const nepaApiUrl = "https://nepassisttool.epa.gov/nepassist/api/arcgis/geometry/buffer";
-  const ipacApiUrl = "https://ipacb.ecosphere.fws.gov/location/api/resources";
-        if (!geometry) {
-          nepaResult.textContent = "No geometry found.";
-          ipacResult.textContent = "No geometry found.";
-          nepaApiCall.textContent = `curl -X POST '${nepaApiUrl}' -H 'Content-Type: application/json' -d '{}'`;
-          ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d '{}'`;
-          return;
-        }
-        try {
-          const geomObj = JSON.parse(geometry);
-          let coords = "";
-          let type = "polygon";
-          if (geomObj.rings) {
-            coords = geomObj.rings[0].map(pt => pt.join(",")).join(",");
-            type = "polygon";
-          } else if (geomObj.paths) {
-            coords = geomObj.paths[0].map(pt => pt.join(",")).join(",");
-            type = "polyline";
-          } else if (geomObj.x && geomObj.y) {
-            coords = `${geomObj.x},${geomObj.y}`;
-            type = "point";
-          } else {
-            nepaResult.textContent = "Unsupported geometry type.";
-            nepaApiCall.textContent = `curl -X POST '${nepaApiUrl}' -H 'Content-Type: application/json' -d '${JSON.stringify({ coords, type, bufferSize })}'`;
-            // IPaC curl and result for unsupported geometry
-            ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d 'Unsupported geometry type.'`;
-            ipacResult.textContent = "IPaC only supports POLYGON and LINESTRING geometries.";
-            ipacResult.style.height = 'auto';
-            ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
-            return;
-          }
-          // IPaC curl and result should be set before NEPA call
-          let wkt = "";
-          let validForIpac = false;
-          if (geomObj.rings) {
-            wkt = `POLYGON((` + geomObj.rings[0].map(pt => pt.join(" ")).join(", ") + `))`;
-            validForIpac = true;
-          } else if (geomObj.paths) {
-            wkt = `LINESTRING(` + geomObj.paths[0].map(pt => pt.join(" ")).join(", ") + `)`;
-            validForIpac = true;
-          }
-          if (validForIpac) {
-            const ipacBody = {
-              projectLocationWKT: wkt,
-              includeOtherFwsResources: true,
-              includeCrithabGeometry: false,
-              saveLocationForProjectCreation: false,
-              timeout: 5
-            };
-            ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d '${JSON.stringify(ipacBody, null, 2)}'`;
-            try {
-              const ipacResponse = await fetch(ipacApiUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(ipacBody)
-              });
-              if (!ipacResponse.ok) throw new Error("API error: " + ipacResponse.status);
-              const ipacData = await ipacResponse.json();
-              ipacResult.textContent = JSON.stringify(ipacData, null, 2);
-              ipacResult.style.height = 'auto';
-              ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
-            } catch (err) {
-              ipacResult.textContent = "Error: " + err.message;
-              ipacResult.style.height = 'auto';
-              ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
-            }
-          } else {
-            ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d 'IPaC only supports POLYGON and LINESTRING geometries.'`;
-            ipacResult.textContent = "IPaC only supports POLYGON and LINESTRING geometries.";
-            ipacResult.style.height = 'auto';
-            ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
-          }
-          // Format coords for display: split into array of pairs if polygon or polyline
-          let displayCoords = coords;
-          if ((type === "polygon" || type === "polyline") && coords) {
-            const pairs = coords.split(",").map(Number);
-            displayCoords = [];
-            for (let i = 0; i < pairs.length; i += 2) {
-              displayCoords.push([pairs[i], pairs[i+1]]);
-            }
-          }
-          const nepaBody = { coords: displayCoords, type, bufferSize };
-          nepaApiCall.textContent = `curl -X POST '${nepaApiUrl}' -H 'Content-Type: application/json' -d '${JSON.stringify(nepaBody, null, 2)}'`;
-          // Always use proxy for NEPA Assist API calls (use geometry buffer proxy)
-          try {
-            const nepaResponse = await fetch('/geometry-buffer-proxy', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(nepaBody)
-            });
-            if (!nepaResponse.ok) throw new Error("API error: " + nepaResponse.status);
-            const nepaData = await nepaResponse.json();
-            nepaResult.textContent = JSON.stringify(nepaData, null, 2);
-            nepaResult.style.height = 'auto';
-            nepaResult.style.height = (nepaResult.scrollHeight + 16) + 'px';
-          } catch (err) {
-            nepaResult.textContent = "Error: " + err.message;
-            nepaResult.style.height = 'auto';
-            nepaResult.style.height = (nepaResult.scrollHeight + 16) + 'px';
-          }
-        } catch (err) {
-          nepaResult.textContent = "Error: " + err.message;
-          nepaResult.style.height = 'auto';
-          nepaResult.style.height = (nepaResult.scrollHeight + 16) + 'px';
-        }
-      });
-    </script>
-  </body>
+   <script>
+ const geomOut = document.getElementById("geom");
+ const sketchEl = document.getElementById("sketch");
+ const geoScreenBtn = document.getElementById("geoScreenBtn");
+ const nepaResult = document.getElementById("nepaResult");
+ const ipacResult = document.getElementById("ipacResult");
+ const nepaApiCall = document.getElementById("nepaApiCall");
+ const ipacApiCall = document.getElementById("ipacApiCall");
+
+
+     // Project Web Mercator to WGS84 so you get lon/lat numbers in the JSON
+     function toWGS84(geometry, done) {
+       if (geometry?.spatialReference?.wkid === 4326) return done(geometry);
+       require(["esri/geometry/support/webMercatorUtils"], wm => {
+         try {
+           const g = wm.webMercatorToGeographic(geometry);
+           done(g || geometry);
+         } catch {
+           done(geometry);
+         }
+       });
+     }
+
+
+     function writeGeom(geometry) {
+       toWGS84(geometry, g => {
+         geomOut.value = JSON.stringify(g.toJSON());
+       });
+     }
+
+
+     // New sketches
+     sketchEl.addEventListener("arcgisCreate", e => {
+       if (e.detail?.state === "complete") writeGeom(e.detail.graphic.geometry);
+     });
+     // Edits to an existing sketch
+     sketchEl.addEventListener("arcgisUpdate", e => {
+       if (e.detail?.state === "complete") writeGeom(e.detail.graphics[0].geometry);
+     });
+     geoScreenBtn.addEventListener("click", async () => {
+ const geometry = geomOut.value;
+ const bufferSize = document.getElementById("bufferSize").value || "0.25";
+ nepaResult.textContent = "";
+ ipacResult.textContent = "";
+ nepaApiCall.textContent = "";
+ ipacApiCall.textContent = "";
+ // Use actual NEPA Assist API URL
+ const nepaApiUrl = "https://nepassisttool.epa.gov/nepassist/api/arcgis/geometry/buffer";
+ const ipacApiUrl = "https://ipacb.ecosphere.fws.gov/location/api/resources";
+       if (!geometry) {
+         nepaResult.textContent = "No geometry found.";
+         ipacResult.textContent = "No geometry found.";
+         nepaApiCall.textContent = `curl -X POST '${nepaApiUrl}' -H 'Content-Type: application/json' -d '{}'`;
+         ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d '{}'`;
+         return;
+       }
+       try {
+         const geomObj = JSON.parse(geometry);
+         let coords = "";
+         let type = "polygon";
+         if (geomObj.rings) {
+           coords = geomObj.rings[0].map(pt => pt.join(",")).join(",");
+           type = "polygon";
+         } else if (geomObj.paths) {
+           coords = geomObj.paths[0].map(pt => pt.join(",")).join(",");
+           type = "polyline";
+         } else if (geomObj.x && geomObj.y) {
+           coords = `${geomObj.x},${geomObj.y}`;
+           type = "point";
+         } else {
+           nepaResult.textContent = "Unsupported geometry type.";
+           nepaApiCall.textContent = `curl -X POST '${nepaApiUrl}' -H 'Content-Type: application/json' -d '${JSON.stringify({ coords, type, bufferSize })}'`;
+           // IPaC curl and result for unsupported geometry
+           ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d 'Unsupported geometry type.'`;
+           ipacResult.textContent = "IPaC only supports POLYGON and LINESTRING geometries.";
+           ipacResult.style.height = 'auto';
+           ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
+           return;
+         }
+         // IPaC curl and result should be set before NEPA call
+         let wkt = "";
+         let validForIpac = false;
+         if (geomObj.rings) {
+           wkt = `POLYGON((` + geomObj.rings[0].map(pt => pt.join(" ")).join(", ") + `))`;
+           validForIpac = true;
+         } else if (geomObj.paths) {
+           wkt = `LINESTRING(` + geomObj.paths[0].map(pt => pt.join(" ")).join(", ") + `)`;
+           validForIpac = true;
+         }
+         if (validForIpac) {
+           const ipacBody = {
+             projectLocationWKT: wkt,
+             includeOtherFwsResources: true,
+             includeCrithabGeometry: false,
+             saveLocationForProjectCreation: false,
+             timeout: 5
+           };
+           ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d '${JSON.stringify(ipacBody, null, 2)}'`;
+           try {
+             const ipacResponse = await fetch(ipacApiUrl, {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify(ipacBody)
+             });
+             if (!ipacResponse.ok) throw new Error("API error: " + ipacResponse.status);
+             const ipacData = await ipacResponse.json();
+             ipacResult.textContent = JSON.stringify(ipacData, null, 2);
+             ipacResult.style.height = 'auto';
+             ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
+              try { renderIpacDigest(ipacData); } catch (e) { console.warn('Failed to render IPaC digest', e); }
+           } catch (err) {
+             ipacResult.textContent = "Error: " + err.message;
+             ipacResult.style.height = 'auto';
+             ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
+           }
+         } else {
+           ipacApiCall.textContent = `curl -X POST '${ipacApiUrl}' -H 'Content-Type: application/json' -d 'IPaC only supports POLYGON and LINESTRING geometries.'`;
+           ipacResult.textContent = "IPaC only supports POLYGON and LINESTRING geometries.";
+           ipacResult.style.height = 'auto';
+           ipacResult.style.height = (ipacResult.scrollHeight + 16) + 'px';
+         }
+         // Format coords for display: split into array of pairs if polygon or polyline
+         let displayCoords = coords;
+         if ((type === "polygon" || type === "polyline") && coords) {
+           const pairs = coords.split(",").map(Number);
+           displayCoords = [];
+           for (let i = 0; i < pairs.length; i += 2) {
+             displayCoords.push([pairs[i], pairs[i+1]]);
+           }
+         }
+         const nepaBody = { coords: displayCoords, type, bufferSize };
+         nepaApiCall.textContent = `curl -X POST '${nepaApiUrl}' -H 'Content-Type: application/json' -d '${JSON.stringify(nepaBody, null, 2)}'`;
+         // Always use proxy for NEPA Assist API calls (use geometry buffer proxy)
+         try {
+           const nepaResponse = await fetch('/geometry-buffer-proxy', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify(nepaBody)
+           });
+           if (!nepaResponse.ok) throw new Error("API error: " + nepaResponse.status);
+           const nepaData = await nepaResponse.json();
+           nepaResult.textContent = JSON.stringify(nepaData, null, 2);
+           nepaResult.style.height = 'auto';
+           nepaResult.style.height = (nepaResult.scrollHeight + 16) + 'px';
+           // Render NEPA digest panel if nepaData contains nepareport.body
+           try {
+             renderNepassistDigest(nepaData);
+           } catch (e) {
+             console.warn('Failed to render NEPAssist digest', e);
+           }
+         } catch (err) {
+           nepaResult.textContent = "Error: " + err.message;
+           nepaResult.style.height = 'auto';
+           nepaResult.style.height = (nepaResult.scrollHeight + 16) + 'px';
+         }
+       } catch (err) {
+         nepaResult.textContent = "Error: " + err.message;
+         nepaResult.style.height = 'auto';
+         nepaResult.style.height = (nepaResult.scrollHeight + 16) + 'px';
+       }
+     });
+
+
+     // NEPAssist digest renderer: flattens questions, ranks answers, sorts, and
+     // renders an HTML table into #nepaDigestContent. Expects the NEPA response
+     // shape where nepareport.body contains CategoryFolder.Category[].Question[]
+     function renderNepassistDigest(nepaData) {
+       const contentEl = document.getElementById('nepaDigestContent');
+       const digestEl = document.getElementById('nepaDigest');
+           if (!nepaData) {
+             contentEl.textContent = 'No NEPAssist report available.';
+             digestEl.style.display = 'none';
+             console.warn('renderNepassistDigest: no nepaData');
+             return;
+           }
+
+
+           // Try common locations for the report body
+           let rpt = (nepaData && nepaData.nepareport && nepaData.nepareport.body) ||
+                     (nepaData && nepaData.nepareport) ||
+                     nepaData.body ||
+                     nepaData.report ||
+                     null;
+           // If still not found, try to locate an object that contains CategoryFolder
+           if (!rpt) {
+             // If the root object itself is the report and has CategoryFolder, use it
+             if (nepaData && nepaData.CategoryFolder) {
+               rpt = nepaData;
+               console.debug('renderNepassistDigest: located rpt at root (nepaData.CategoryFolder)');
+             } else {
+               for (const k of Object.keys(nepaData)) {
+                 const v = nepaData[k];
+                 if (v && typeof v === 'object' && ('CategoryFolder' in v)) {
+                   rpt = v;
+                   console.debug('renderNepassistDigest: located rpt at top-level key', k);
+                   break;
+                 }
+               }
+             }
+           }
+           if (!rpt) {
+             contentEl.textContent = 'No NEPAssist report available.';
+             digestEl.style.display = 'none';
+             console.warn('renderNepassistDigest: could not find report in nepaData', nepaData);
+             return;
+           }
+       const rankMap = { yes: 0, ondemand: 1, no: 2 };
+       const items = [];
+       // Normalize categories to an array
+       const catFolder = rpt.CategoryFolder || rpt;
+       let cats = [];
+       if (catFolder && catFolder.Category) {
+         cats = Array.isArray(catFolder.Category) ? catFolder.Category : [catFolder.Category];
+       }
+       for (const cat of cats) {
+         if (!cat) continue;
+         let questions = [];
+         if (cat.Question) questions = Array.isArray(cat.Question) ? cat.Question : [cat.Question];
+         for (const q of questions) {
+           if (!q) continue;
+           const ans = (String(q.answer || q.Answer || '')).trim().toLowerCase();
+           items.push({ q, ans, rank: (rankMap.hasOwnProperty(ans) ? rankMap[ans] : 3) });
+         }
+       }
+       // sort by rank ascending
+       items.sort((a, b) => a.rank - b.rank);
+       // build HTML table
+       const rows = items.map(item => {
+         const qText = item.q.questionText || item.q.QuestionText || item.q.question || '';
+         let resultHtml = '';
+         if (item.ans === 'yes') resultHtml = '⚠️ Yes';
+         else if (item.ans === 'no') resultHtml = '✅ No';
+         else if (item.ans === 'ondemand') resultHtml = '⏳ On demand';
+         else resultHtml = (item.q && item.q.answer) || '';
+         return `<tr><td>${escapeHtml(qText)}</td><td>${escapeHtml(resultHtml)}</td></tr>`;
+       }).join('');
+       const table = `<table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Question</th><th>Result</th></tr></thead><tbody>${rows}</tbody></table>`;
+       contentEl.innerHTML = table;
+       digestEl.style.display = 'block';
+     }
+
+
+     // simple HTML escaper
+     function escapeHtml(str) {
+       return String(str || '')
+         .replace(/&/g, '&amp;')
+         .replace(/</g, '&lt;')
+         .replace(/>/g, '&gt;')
+         .replace(/"/g, '&quot;')
+         .replace(/'/g, '&#39;');
+     }
+
+
+       // IPaC digest renderer following provided template logic
+       function renderIpacDigest(ipacData) {
+         const contentEl = document.getElementById('ipacDigestContent');
+         const digestEl = document.getElementById('ipacDigest');
+         if (!ipacData || !ipacData.body && !ipacData.resources && !ipacData.ipac_report) {
+           contentEl.textContent = 'No IPaC report available.';
+           digestEl.style.display = 'none';
+           return;
+         }
+         // The template expects ipac_report.body; handle variations
+         const body = (ipacData.ipac_report && ipacData.ipac_report.body) || ipacData.body || ipacData.resources || {};
+         const R = body.resources || body || {};
+         const L = R.location || {};
+         let html = `<h3>IPaC screening summary</h3><ul>`;
+         html += `<li><strong>Location</strong>: ${escapeHtml(L.description || 'n/a')}</li>`;
+
+
+         // Listed species
+         const pops = R.populationsBySid || {};
+         html += `<li><strong>Listed species</strong>:`;
+         if (pops && Object.keys(pops).length > 0) {
+           html += '<ul>';
+           for (const sid of Object.keys(pops)) {
+             const p = pops[sid] || {};
+             const pop = p.population || {};
+             const name = pop.optionalCommonName || pop.scientificName || 'Unknown species';
+             const status = pop.listingStatusName || 'Status not provided';
+             html += `<li>${escapeHtml(name)} (${escapeHtml(status)})</li>`;
+           }
+           html += '</ul>';
+         } else {
+           html += ' None returned';
+         }
+         html += '</li>';
+
+
+         // Critical habitat
+         const chabs = R.crithabs || [];
+         html += `<li><strong>Critical habitat</strong>:`;
+         if (chabs && chabs.length > 0) {
+           html += '<ul>';
+           for (const ch of chabs) {
+             const name = ch.criticalHabitatName || ch.commonName || ch.scientificName || ch.name || JSON.stringify(ch);
+             html += `<li>${escapeHtml(name)}</li>`;
+           }
+           html += '</ul>';
+         } else {
+           html += ' None returned';
+         }
+         html += '</li>';
+
+
+         // Migratory birds
+         const migs = R.migbirds || [];
+         html += `<li><strong>Migratory birds of concern</strong>:`;
+         if (migs && migs.length > 0) {
+           html += '<ul>';
+           for (const m of migs) {
+             const name = (m && m.phenologySpecies && m.phenologySpecies.commonName) || JSON.stringify(m);
+             html += `<li>${escapeHtml(name)}</li>`;
+           }
+           html += '</ul>';
+         } else {
+           html += ' None returned';
+         }
+         html += '</li>';
+
+
+         // Wetlands
+         const wl = R.wetlands || {};
+         let wl_items = [];
+         if (wl && Array.isArray(wl)) wl_items = wl;
+         else if (wl && wl.items && Array.isArray(wl.items)) wl_items = wl.items;
+         html += `<li><strong>Wetlands</strong>:`;
+         if (wl_items && wl_items.length > 0) {
+           html += '<ul>';
+           for (const w of wl_items) {
+             const acres = typeof w.acres === 'number' ? w.acres.toFixed(1) : (w.acres || 'n/a');
+             html += `<li>${escapeHtml(w.wetlandType || 'Wetland')} - ${escapeHtml(acres)} ac</li>`;
+           }
+           html += '</ul>';
+         } else {
+           html += ' None returned';
+         }
+         html += '</li>';
+
+
+         // Field offices
+         const offices = R.fieldOffices || [];
+         html += `<li><strong>FWS field offices</strong>:`;
+         if (offices && offices.length > 0) {
+           html += '<ul>';
+           for (const o of offices) {
+             html += `<li>${escapeHtml(o.officeName || '')}${o.formattedPhone ? ' (' + escapeHtml(o.formattedPhone) + ')' : ''}</li>`;
+           }
+           html += '</ul>';
+         } else {
+           html += ' n/a';
+         }
+         html += '</li>';
+
+
+         html += '</ul>';
+         if (body.importantMessage) html += `<p style="font-size:0.9em;color:#555;">Note: ${escapeHtml(body.importantMessage)}</p>`;
+
+
+         contentEl.innerHTML = html;
+         digestEl.style.display = 'block';
+       }
+   </script>
+ </body>
 </html>
+
+
+
